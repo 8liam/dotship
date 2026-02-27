@@ -1,5 +1,5 @@
 import React, {useState, useCallback} from 'react';
-import {Box, Text} from 'ink';
+import {Box, Text, useApp, useInput} from 'ink';
 import Header from './components/Header.js';
 import CommandInput from './components/CommandInput.js';
 import RepoBrowser from './components/RepoBrowser.js';
@@ -38,8 +38,19 @@ type Screen =
 	| {type: 'error'; message: string};
 
 export default function App() {
+	const {exit} = useApp();
 	const [screen, setScreen] = useState<Screen>({type: 'url-input'});
 	const [error, setError] = useState('');
+
+	useInput((input, key) => {
+		if (input === 'q' && screen.type === 'done') {
+			exit();
+		}
+
+		if (key.escape) {
+			exit();
+		}
+	});
 
 	const loadContents = useCallback(
 		async (owner: string, repo: string, path: string[], fallback: Screen) => {
@@ -233,6 +244,9 @@ export default function App() {
 					<Text color="green">
 						✔ Saved to <Text bold>{screen.destPath}</Text>
 					</Text>
+					<Box marginTop={1}>
+						<Text dimColor>Press q or esc to exit</Text>
+					</Box>
 				</Box>
 			)}
 		</Box>
