@@ -1,7 +1,11 @@
 {
 	"name": "dotship",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/8liam/dotship.git"
+	},
 	"bin": {
 		"dotship": "dist/cli.js"
 	},
