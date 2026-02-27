@@ -2,7 +2,9 @@
 	"name": "dotship",
 	"version": "1.0.0",
 	"license": "MIT",
-	"bin": "dist/cli.js",
+	"bin": {
+		"dotship": "dist/cli.js"
+	},
 	"type": "module",
 	"engines": {
 		"node": ">=18"
