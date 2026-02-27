@@ -7,7 +7,7 @@
 		"url": "https://github.com/8liam/dotship.git"
 	},
 	"bin": {
-		"dotship": "dist/cli.js"
+		"dotship": "dist/source/cli.js"
 	},
 	"type": "module",
 	"engines": {
@@ -16,11 +16,11 @@
 	"scripts": {
 		"build": "tsc",
 		"dev": "tsc --watch",
-		"start": "node dist/cli.js",
+		"start": "node dist/source/cli.js",
 		"test": "ava"
 	},
 	"files": [
-		"dist"
+		"dist/source"
 	],
 	"dependencies": {
 		"ink": "^4.1.0",
