@@ -1,6 +1,8 @@
 import React, {useState} from 'react';
 import {Box, Text, useInput} from 'ink';
 import type {RepoItem} from '../utils/github.js';
+import StatusBar from './StatusBar.js';
+import theme from '../theme.js';
 
 type Props = {
 	owner: string;
@@ -44,7 +46,7 @@ export default function RepoBrowser({
 		}
 	});
 
-	const currentPath = path.length > 0 ? path.join('/') : '/';
+	const currentPath = path.length > 0 ? path.join('/') : '.';
 
 	const scrollStart = Math.max(
 		0,
@@ -54,45 +56,50 @@ export default function RepoBrowser({
 
 	return (
 		<Box flexDirection="column">
-			<Box marginBottom={1}>
-				<Text dimColor>
-					{owner}/{repo}
-				</Text>
-				<Text bold color="cyan">
-					{' '}
-					{currentPath}
-				</Text>
+			<Box marginBottom={0}>
+				<Text dimColor>{owner}/{repo}</Text>
+				<Text bold> /{currentPath}</Text>
 			</Box>
 
-			{visibleItems.map((item, i) => {
-				const realIndex = scrollStart + i;
-				const isSelected = realIndex === cursor;
-				const icon = item.type === 'dir' ? '📁' : '📄';
+			<Box
+				flexDirection="column"
+				borderStyle="round"
+				borderColor={theme.border}
+				paddingX={1}
+				width="100%"
+			>
+				{visibleItems.map((item, i) => {
+					const realIndex = scrollStart + i;
+					const isSelected = realIndex === cursor;
 
-				return (
-					<Box key={item.path}>
-						<Text color={isSelected ? 'magenta' : undefined} bold={isSelected}>
-							{isSelected ? '❯ ' : '  '}
-							{icon} {item.name}
-							{item.type === 'dir' ? '/' : ''}
+					return (
+						<Box key={item.path}>
+							<Text
+								color={isSelected ? theme.accent : undefined}
+								bold={isSelected}
+								dimColor={!isSelected}
+							>
+								{isSelected ? '> ' : '  '}
+								{item.name}{item.type === 'dir' ? '/' : ''}
+							</Text>
+						</Box>
+					);
+				})}
+				{items.length > VISIBLE_ITEMS && (
+					<Box marginTop={0}>
+						<Text dimColor>
+							  {cursor + 1}/{items.length}
 						</Text>
 					</Box>
-				);
-			})}
-
-			{items.length > VISIBLE_ITEMS && (
-				<Box marginTop={1}>
-					<Text dimColor>
-						{cursor + 1}/{items.length}
-					</Text>
-				</Box>
-			)}
-
-			<Box marginTop={1}>
-				<Text dimColor>
-					↑↓ navigate • enter select • backspace back
-				</Text>
+				)}
 			</Box>
+
+			<StatusBar keys={[
+				{key: '↑↓', label: 'navigate'},
+				{key: 'enter', label: 'select'},
+				{key: 'backspace', label: 'back'},
+				{key: 'esc', label: 'exit'},
+			]} />
 		</Box>
 	);
 }

@@ -1,6 +1,8 @@
 import React, {useState} from 'react';
 import {Box, Text, useInput} from 'ink';
 import TextInput from 'ink-text-input';
+import StatusBar from './StatusBar.js';
+import theme from '../theme.js';
 
 type Props = {
 	fileName: string;
@@ -39,18 +41,16 @@ export default function DestinationInput({
 		<Box flexDirection="column">
 			<Box marginBottom={1} flexDirection="column">
 				<Text>
-					Selected: <Text bold color="cyan">{fileName}</Text>
+					<Text dimColor>File: </Text>
+					<Text bold>{fileName}</Text>
 				</Text>
 				<Text dimColor>{filePath}</Text>
 			</Box>
 
-			<Box marginBottom={1}>
-				<Text>Where should this file be saved?</Text>
-			</Box>
-
-			<Box>
-				<Text bold color="magenta">
-					{'❯ '}
+			<Text dimColor>Save to:</Text>
+			<Box borderStyle="round" borderColor={theme.border} paddingX={1} width="100%">
+				<Text color={theme.prompt} bold>
+					{'> '}
 				</Text>
 				<TextInput
 					value={value}
@@ -66,13 +66,17 @@ export default function DestinationInput({
 
 			{error && (
 				<Box marginTop={1}>
-					<Text color="red">{error}</Text>
+					<Text color={theme.error}> {error}</Text>
 				</Box>
 			)}
 
-			<Box marginTop={1}>
-				<Text dimColor>Enter a file path or directory • backspace when empty to go back</Text>
-			</Box>
+			<StatusBar
+				keys={[
+					{key: 'enter', label: 'submit'},
+					{key: 'backspace', label: 'back'},
+					{key: 'esc', label: 'exit'},
+				]}
+			/>
 		</Box>
 	);
 }
