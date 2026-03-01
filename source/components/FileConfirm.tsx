@@ -1,5 +1,7 @@
 import React, {useState} from 'react';
 import {Box, Text, useInput} from 'ink';
+import StatusBar from './StatusBar.js';
+import theme from '../theme.js';
 
 type Props = {
 	fileName: string;
@@ -38,41 +40,55 @@ export default function FileConfirm({
 
 	return (
 		<Box flexDirection="column">
-			<Box marginBottom={1} flexDirection="column">
+			<Box
+				flexDirection="column"
+				borderStyle="round"
+				borderColor={theme.border}
+				paddingX={1}
+				width="100%"
+			>
 				<Text>
-					File:{' '}
-					<Text bold color="cyan">
-						{fileName}
-					</Text>
+					<Text dimColor>File: </Text>
+					<Text bold>{fileName}</Text>
 				</Text>
 				<Text>
-					From: <Text dimColor>{sourcePath}</Text>
+					<Text dimColor>From: </Text>
+					<Text>{sourcePath}</Text>
 				</Text>
 				<Text>
-					To:{'   '}
-					<Text bold>{destPath}</Text>
+					<Text dimColor>To:   </Text>
+					<Text bold color={theme.accent}>{destPath}</Text>
 				</Text>
+
+				{willOverwrite && (
+					<Box marginTop={1}>
+						<Text color={theme.warning}>
+							! File exists and will be overwritten.
+						</Text>
+					</Box>
+				)}
+
+				<Box marginTop={1} flexDirection="column">
+					{options.map((option, i) => (
+						<Box key={option}>
+							<Text
+								color={i === cursor ? theme.accent : undefined}
+								bold={i === cursor}
+								dimColor={i !== cursor}
+							>
+								{i === cursor ? '> ' : '  '}
+								{option}
+							</Text>
+						</Box>
+					))}
+				</Box>
 			</Box>
 
-			{willOverwrite && (
-				<Box marginBottom={1}>
-					<Text color="yellow">
-						⚠ A file already exists at this path. It will be overwritten.
-					</Text>
-				</Box>
-			)}
-
-			{options.map((option, i) => (
-				<Box key={option}>
-					<Text
-						color={i === cursor ? 'magenta' : undefined}
-						bold={i === cursor}
-					>
-						{i === cursor ? '❯ ' : '  '}
-						{option}
-					</Text>
-				</Box>
-			))}
+			<StatusBar keys={[
+				{key: '↑↓', label: 'select'},
+				{key: 'enter', label: 'confirm'},
+				{key: 'backspace', label: 'back'},
+			]} />
 		</Box>
 	);
 }
