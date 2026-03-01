@@ -247,9 +247,9 @@ test('RepoBrowser — first item is selected by default', t => {
 		/>,
 	);
 	const frame = lastFrame()!;
-	t.true(frame.includes('❯'));
+	t.true(frame.includes('> '));
 	const lines = frame.split('\n');
-	const selectedLine = lines.find(l => l.includes('❯'));
+	const selectedLine = lines.find(l => l.includes('> '));
 	t.truthy(selectedLine);
 	t.true(selectedLine!.includes('src'));
 	unmount();
@@ -273,7 +273,7 @@ test('RepoBrowser — down arrow moves cursor', async t => {
 	await delay();
 
 	const lines = lastFrame()!.split('\n');
-	const selectedLine = lines.find(l => l.includes('❯'));
+	const selectedLine = lines.find(l => l.includes('> '));
 	t.truthy(selectedLine);
 	t.true(selectedLine!.includes('docs'));
 	unmount();
@@ -513,7 +513,7 @@ test('DestinationInput — renders selected file info', t => {
 	const frame = lastFrame()!;
 	t.true(frame.includes('config'));
 	t.true(frame.includes('.config/ghostty/config'));
-	t.true(frame.includes('Where should this file be saved'));
+	t.true(frame.includes('Save to:'));
 	unmount();
 });
 
@@ -526,7 +526,7 @@ test('DestinationInput — renders prompt character', t => {
 			onBack={noop}
 		/>,
 	);
-	t.true(lastFrame()!.includes('❯'));
+	t.true(lastFrame()!.includes('> '));
 	unmount();
 });
 
@@ -534,7 +534,7 @@ test('DestinationInput — renders prompt character', t => {
 
 test('CommandInput — renders prompt', t => {
 	const {lastFrame, unmount} = render(<CommandInput onSubmit={noop} />);
-	t.true(lastFrame()!.includes('❯'));
+	t.true(lastFrame()!.includes('> '));
 	unmount();
 });
 
@@ -568,6 +568,6 @@ test('CommandInput — shows error for invalid URL', async t => {
 	stdin.write(ENTER);
 	await delay();
 
-	t.true(lastFrame()!.includes('Invalid GitHub URL'));
+	t.true(lastFrame()!.includes('Invalid URL'));
 	unmount();
 });
