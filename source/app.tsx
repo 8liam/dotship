@@ -1,7 +1,9 @@
 import React, {useState, useCallback} from 'react';
 import {Box, Text, useApp, useInput} from 'ink';
 import Header from './components/Header.js';
+import Spinner from './components/Spinner.js';
 import CommandInput from './components/CommandInput.js';
+import theme from './theme.js';
 import RepoBrowser from './components/RepoBrowser.js';
 import DestinationInput from './components/DestinationInput.js';
 import FileConfirm from './components/FileConfirm.js';
@@ -187,11 +189,11 @@ export default function App() {
 
 	return (
 		<Box flexDirection="column">
-			<Header />
+			<Header showDescription={screen.type === 'url-input'} />
 
 			{error && (
 				<Box marginBottom={1}>
-					<Text color="red">{error}</Text>
+					<Text color={theme.error}> {error}</Text>
 				</Box>
 			)}
 
@@ -200,11 +202,19 @@ export default function App() {
 			)}
 
 			{(screen.type === 'loading' || screen.type === 'writing') && (
-				<Text color="yellow">
-					{screen.type === 'writing'
-						? 'Downloading and saving file...'
-						: screen.message}
-				</Text>
+				<Box
+					borderStyle="round"
+					borderColor={theme.border}
+					paddingX={1}
+					width="100%"
+				>
+					<Spinner />
+					<Text dimColor>
+						{screen.type === 'writing'
+							? ' Downloading and saving file...'
+							: ` ${screen.message}`}
+					</Text>
+				</Box>
 			)}
 
 			{screen.type === 'browsing' && (
@@ -240,12 +250,25 @@ export default function App() {
 			)}
 
 			{screen.type === 'done' && (
-				<Box flexDirection="column" marginTop={1}>
-					<Text color="green">
-						✔ Saved to <Text bold>{screen.destPath}</Text>
-					</Text>
+				<Box flexDirection="column">
+					<Box
+						borderStyle="round"
+						borderColor={theme.success}
+						paddingX={1}
+						width="100%"
+					>
+						<Text>
+							<Text color={theme.success} bold>done</Text>
+							<Text dimColor> — saved to </Text>
+							<Text bold>{screen.destPath}</Text>
+						</Text>
+					</Box>
 					<Box marginTop={1}>
-						<Text dimColor>Press q or esc to exit</Text>
+						<Text dimColor>  press </Text>
+						<Text color={theme.key} bold>q</Text>
+						<Text dimColor> or </Text>
+						<Text color={theme.key} bold>esc</Text>
+						<Text dimColor> to exit</Text>
 					</Box>
 				</Box>
 			)}
