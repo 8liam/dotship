@@ -7,12 +7,17 @@ import theme from './theme.js';
 import RepoBrowser from './components/RepoBrowser.js';
 import DestinationInput from './components/DestinationInput.js';
 import FileConfirm from './components/FileConfirm.js';
+import ManifestPrompt from './components/ManifestPrompt.js';
+import ManifestReview from './components/ManifestReview.js';
+import ManifestDone from './components/ManifestDone.js';
 import {
 	fetchRepoContents,
 	fetchFileContent,
 	fileExists,
 	resolveDestination,
 	writeFileToPath,
+	fetchManifest,
+	expandTilde,
 	type RepoItem,
 } from './utils/github.js';
 
@@ -28,6 +33,18 @@ type FileSelection = {
 	fileName: string;
 };
 
+type ManifestEntry = {
+	source: string;
+	dest: string;
+	willOverwrite: boolean;
+};
+
+type ManifestResult = {
+	source: string;
+	dest: string;
+	success: boolean;
+};
+
 type Screen =
 	| {type: 'url-input'}
 	| {type: 'loading'; message: string}
@@ -37,7 +54,25 @@ type Screen =
 			FileSelection & {destPath: string; willOverwrite: boolean})
 	| {type: 'writing'}
 	| {type: 'done'; destPath: string}
-	| {type: 'error'; message: string};
+	| {type: 'error'; message: string}
+	| {
+			type: 'manifest-prompt';
+			owner: string;
+			repo: string;
+			entries: ManifestEntry[];
+	  }
+	| {
+			type: 'manifest-review';
+			owner: string;
+			repo: string;
+			entries: ManifestEntry[];
+	  }
+	| {
+			type: 'manifest-done';
+			owner: string;
+			repo: string;
+			results: ManifestResult[];
+	  };
 
 export default function App() {
 	const {exit} = useApp();
@@ -45,7 +80,10 @@ export default function App() {
 	const [error, setError] = useState('');
 
 	useInput((input, key) => {
-		if (input === 'q' && screen.type === 'done') {
+		if (
+			input === 'q' &&
+			(screen.type === 'done' || screen.type === 'manifest-done')
+		) {
 			exit();
 		}
 
@@ -77,7 +115,34 @@ export default function App() {
 	);
 
 	const handleUrlSubmit = useCallback(
-		(owner: string, repo: string) => {
+		async (owner: string, repo: string) => {
+			setError('');
+			setScreen({type: 'loading', message: 'Checking for manifest...'});
+
+			try {
+				const manifest = await fetchManifest(owner, repo);
+
+				if (manifest) {
+					const entries: ManifestEntry[] = await Promise.all(
+						Object.entries(manifest.files).map(async ([source, dest]) => {
+							const resolvedDest = expandTilde(dest);
+							const willOverwrite = await fileExists(resolvedDest);
+							return {source, dest: resolvedDest, willOverwrite};
+						}),
+					);
+
+					setScreen({
+						type: 'manifest-prompt',
+						owner,
+						repo,
+						entries,
+					});
+					return;
+				}
+			} catch {
+				// Manifest fetch failed, fall through to browse mode
+			}
+
 			void loadContents(owner, repo, [], {type: 'url-input'});
 		},
 		[loadContents],
@@ -187,9 +252,65 @@ export default function App() {
 		});
 	}, [screen]);
 
+	const handleManifestConfirm = useCallback(async () => {
+		if (screen.type !== 'manifest-review') return;
+		setScreen({type: 'loading', message: 'Installing files...'});
+		setError('');
+
+		const results: ManifestResult[] = [];
+
+		for (const entry of screen.entries) {
+			try {
+				const content = await fetchFileContent(
+					screen.owner,
+					screen.repo,
+					entry.source,
+				);
+				await writeFileToPath(entry.dest, content);
+				results.push({source: entry.source, dest: entry.dest, success: true});
+			} catch {
+				results.push({source: entry.source, dest: entry.dest, success: false});
+			}
+		}
+
+		setScreen({
+			type: 'manifest-done',
+			owner: screen.owner,
+			repo: screen.repo,
+			results,
+		});
+	}, [screen]);
+
+	const handleManifestBack = useCallback(() => {
+		if (screen.type !== 'manifest-review') return;
+		setScreen({
+			type: 'manifest-prompt',
+			owner: screen.owner,
+			repo: screen.repo,
+			entries: screen.entries,
+		});
+	}, [screen]);
+
+	const handleUseManifest = useCallback(() => {
+		if (screen.type !== 'manifest-prompt') return;
+		setScreen({
+			type: 'manifest-review',
+			owner: screen.owner,
+			repo: screen.repo,
+			entries: screen.entries,
+		});
+	}, [screen]);
+
+	const handleBrowseManually = useCallback(() => {
+		if (screen.type !== 'manifest-prompt') return;
+		void loadContents(screen.owner, screen.repo, [], {type: 'url-input'});
+	}, [screen, loadContents]);
+
+	const showHeader = screen.type === 'url-input';
+
 	return (
 		<Box flexDirection="column">
-			<Header showDescription={screen.type === 'url-input'} />
+			{showHeader && <Header showDescription />}
 
 			{error && (
 				<Box marginBottom={1}>
@@ -258,19 +379,49 @@ export default function App() {
 						width="100%"
 					>
 						<Text>
-							<Text color={theme.success} bold>done</Text>
+							<Text color={theme.success} bold>
+								done
+							</Text>
 							<Text dimColor> — saved to </Text>
 							<Text bold>{screen.destPath}</Text>
 						</Text>
 					</Box>
 					<Box marginTop={1}>
-						<Text dimColor>  press </Text>
-						<Text color={theme.key} bold>q</Text>
+						<Text dimColor> press </Text>
+						<Text color={theme.key} bold>
+							q
+						</Text>
 						<Text dimColor> or </Text>
-						<Text color={theme.key} bold>esc</Text>
+						<Text color={theme.key} bold>
+							esc
+						</Text>
 						<Text dimColor> to exit</Text>
 					</Box>
 				</Box>
+			)}
+
+		{screen.type === 'manifest-prompt' && (
+			<ManifestPrompt
+				owner={screen.owner}
+				repo={screen.repo}
+				fileCount={screen.entries.length}
+				onUseManifest={handleUseManifest}
+				onBrowseManually={handleBrowseManually}
+			/>
+		)}
+
+		{screen.type === 'manifest-review' && (
+			<ManifestReview
+				owner={screen.owner}
+				repo={screen.repo}
+				entries={screen.entries}
+				onConfirm={() => void handleManifestConfirm()}
+				onBack={handleManifestBack}
+			/>
+		)}
+
+			{screen.type === 'manifest-done' && (
+				<ManifestDone results={screen.results} />
 			)}
 		</Box>
 	);
