@@ -6,11 +6,18 @@ import {tmpdir} from 'node:os';
 import {EventEmitter} from 'node:events';
 import test from 'ava';
 import {render as inkRender} from 'ink';
-import {parseGitHubUrl, resolveDestination} from './source/utils/github.js';
+import {
+	parseGitHubUrl,
+	resolveDestination,
+	parseManifest,
+} from './source/utils/github.js';
 import RepoBrowser from './source/components/RepoBrowser.js';
 import FileConfirm from './source/components/FileConfirm.js';
 import DestinationInput from './source/components/DestinationInput.js';
 import CommandInput from './source/components/CommandInput.js';
+import ManifestReview from './source/components/ManifestReview.js';
+import ManifestDone from './source/components/ManifestDone.js';
+import ManifestPrompt from './source/components/ManifestPrompt.js';
 import type {RepoItem} from './source/utils/github.js';
 import type {ReactElement} from 'react';
 
@@ -84,9 +91,10 @@ const ARROW_DOWN = '\u001B[B';
 const ENTER = '\r';
 const BACKSPACE = '\u007F';
 
-const delay = (ms = 50) => new Promise<void>(resolve => {
-	setTimeout(resolve, ms);
-});
+const delay = (ms = 50) =>
+	new Promise<void>(resolve => {
+		setTimeout(resolve, ms);
+	});
 
 // ── parseGitHubUrl ──────────────────────────────────────────────────────
 
@@ -101,9 +109,7 @@ test('parseGitHubUrl — strips .git suffix', t => {
 });
 
 test('parseGitHubUrl — works with nested path after repo', t => {
-	const result = parseGitHubUrl(
-		'https://github.com/user/repo/tree/main/src',
-	);
+	const result = parseGitHubUrl('https://github.com/user/repo/tree/main/src');
 	t.deepEqual(result, {owner: 'user', repo: 'repo'});
 });
 
@@ -558,9 +564,7 @@ test('CommandInput — calls onSubmit with owner and repo for valid URL', async 
 });
 
 test('CommandInput — shows error for invalid URL', async t => {
-	const {stdin, lastFrame, unmount} = render(
-		<CommandInput onSubmit={noop} />,
-	);
+	const {stdin, lastFrame, unmount} = render(<CommandInput onSubmit={noop} />);
 
 	await delay();
 	stdin.write('not-a-url');
@@ -569,5 +573,306 @@ test('CommandInput — shows error for invalid URL', async t => {
 	await delay();
 
 	t.true(lastFrame()!.includes('Invalid URL'));
+	unmount();
+});
+
+// ── parseManifest ────────────────────────────────────────────────────────
+
+test('parseManifest — parses valid YAML with files object', t => {
+	const yaml = `files:
+  config: ~/.config/ghostty/config
+  .zshrc: ~/.zshrc`;
+	const result = parseManifest(yaml);
+	t.deepEqual(result, {
+		files: {
+			config: '~/.config/ghostty/config',
+			'.zshrc': '~/.zshrc',
+		},
+	});
+});
+
+test('parseManifest — returns undefined for empty content', t => {
+	t.is(parseManifest(''), undefined);
+});
+
+test('parseManifest — returns undefined for missing files key', t => {
+	const yaml = `other: value`;
+	t.is(parseManifest(yaml), undefined);
+});
+
+test('parseManifest — returns undefined for files as array', t => {
+	const yaml = `files:
+  - item1
+  - item2`;
+	t.is(parseManifest(yaml), undefined);
+});
+
+test('parseManifest — returns undefined for files as string', t => {
+	const yaml = `files: "not an object"`;
+	t.is(parseManifest(yaml), undefined);
+});
+
+test('parseManifest — returns undefined for invalid YAML syntax', t => {
+	const yaml = `files: {unclosed`;
+	t.is(parseManifest(yaml), undefined);
+});
+
+// ── ManifestReview ───────────────────────────────────────────────────────
+
+const sampleEntries = [
+	{source: 'config', dest: '~/.config/ghostty/config', willOverwrite: false},
+	{source: '.zshrc', dest: '~/.zshrc', willOverwrite: true},
+	{
+		source: 'starship.toml',
+		dest: '~/.config/starship.toml',
+		willOverwrite: false,
+	},
+];
+
+test('ManifestReview — renders owner/repo info', t => {
+	const {lastFrame, unmount} = render(
+		<ManifestReview
+			owner="acme"
+			repo="dotfiles"
+			entries={sampleEntries}
+			onConfirm={noop}
+			onBack={noop}
+		/>,
+	);
+	const frame = lastFrame()!;
+	t.true(frame.includes('Installing'));
+	t.true(frame.includes('acme/dotfiles'));
+	unmount();
+});
+
+test('ManifestReview — renders all entries', t => {
+	const {lastFrame, unmount} = render(
+		<ManifestReview
+			owner="acme"
+			repo="dotfiles"
+			entries={sampleEntries}
+			onConfirm={noop}
+			onBack={noop}
+		/>,
+	);
+	const frame = lastFrame()!;
+	t.true(frame.includes('config'));
+	t.true(frame.includes('.zshrc'));
+	t.true(frame.includes('starship.toml'));
+	unmount();
+});
+
+test('ManifestReview — shows overwrite warning marker', t => {
+	const {lastFrame, unmount} = render(
+		<ManifestReview
+			owner="acme"
+			repo="dotfiles"
+			entries={sampleEntries}
+			onConfirm={noop}
+			onBack={noop}
+		/>,
+	);
+	const frame = lastFrame()!;
+	t.true(frame.includes('[!]'));
+	t.true(frame.includes('will be overwritten'));
+	unmount();
+});
+
+test('ManifestReview — shows install count', t => {
+	const {lastFrame, unmount} = render(
+		<ManifestReview
+			owner="acme"
+			repo="dotfiles"
+			entries={sampleEntries}
+			onConfirm={noop}
+			onBack={noop}
+		/>,
+	);
+	t.true(lastFrame()!.includes('3 files'));
+	unmount();
+});
+
+test('ManifestReview — enter on Install all calls onConfirm', async t => {
+	t.plan(1);
+	const {stdin, unmount} = render(
+		<ManifestReview
+			owner="acme"
+			repo="dotfiles"
+			entries={sampleEntries}
+			onConfirm={() => {
+				t.pass();
+			}}
+			onBack={noop}
+		/>,
+	);
+
+	await delay();
+	stdin.write(ENTER);
+	await delay();
+	unmount();
+});
+
+test('ManifestReview — navigate to Go back and press enter calls onBack', async t => {
+	t.plan(1);
+	const {stdin, unmount} = render(
+		<ManifestReview
+			owner="acme"
+			repo="dotfiles"
+			entries={sampleEntries}
+			onConfirm={noop}
+			onBack={() => {
+				t.pass();
+			}}
+		/>,
+	);
+
+	await delay();
+	stdin.write(ARROW_DOWN);
+	await delay();
+	stdin.write(ENTER);
+	await delay();
+	unmount();
+});
+
+// ── ManifestDone ─────────────────────────────────────────────────────────
+
+const sampleResults = [
+	{source: 'config', dest: '~/.config/ghostty/config', success: true},
+	{source: '.zshrc', dest: '~/.zshrc', success: true},
+	{source: 'starship.toml', dest: '~/.config/starship.toml', success: false},
+];
+
+test('ManifestDone — renders success count', t => {
+	const {lastFrame, unmount} = render(<ManifestDone results={sampleResults} />);
+	const frame = lastFrame()!;
+	t.true(frame.includes('done'));
+	t.true(frame.includes('2'));
+	unmount();
+});
+
+test('ManifestDone — renders failure count', t => {
+	const {lastFrame, unmount} = render(<ManifestDone results={sampleResults} />);
+	const frame = lastFrame()!;
+	t.true(frame.includes('1 failed'));
+	unmount();
+});
+
+test('ManifestDone — renders each result', t => {
+	const {lastFrame, unmount} = render(<ManifestDone results={sampleResults} />);
+	const frame = lastFrame()!;
+	t.true(frame.includes('config'));
+	t.true(frame.includes('.zshrc'));
+	t.true(frame.includes('starship.toml'));
+	unmount();
+});
+
+test('ManifestDone — shows ok indicator for success', t => {
+	const {lastFrame, unmount} = render(<ManifestDone results={sampleResults} />);
+	t.true(lastFrame()!.includes('ok'));
+	unmount();
+});
+
+test('ManifestDone — shows failed to write for failure', t => {
+	const {lastFrame, unmount} = render(<ManifestDone results={sampleResults} />);
+	t.true(lastFrame()!.includes('failed to write'));
+	unmount();
+});
+
+test('ManifestDone — shows exit instructions', t => {
+	const {lastFrame, unmount} = render(<ManifestDone results={sampleResults} />);
+	const frame = lastFrame()!;
+	t.true(frame.includes('q'));
+	t.true(frame.includes('esc'));
+	unmount();
+});
+
+// ── ManifestPrompt ──────────────────────────────────────────────────────
+
+test('ManifestPrompt — renders owner/repo info', t => {
+	const {lastFrame, unmount} = render(
+		<ManifestPrompt
+			owner="acme"
+			repo="dotfiles"
+			fileCount={3}
+			onUseManifest={noop}
+			onBrowseManually={noop}
+		/>,
+	);
+	const frame = lastFrame()!;
+	t.true(frame.includes('.dotship.yml'));
+	t.true(frame.includes('acme/dotfiles'));
+	unmount();
+});
+
+test('ManifestPrompt — renders file count', t => {
+	const {lastFrame, unmount} = render(
+		<ManifestPrompt
+			owner="acme"
+			repo="dotfiles"
+			fileCount={5}
+			onUseManifest={noop}
+			onBrowseManually={noop}
+		/>,
+	);
+	const frame = lastFrame()!;
+	t.true(frame.includes('5 files'));
+	unmount();
+});
+
+test('ManifestPrompt — renders both options', t => {
+	const {lastFrame, unmount} = render(
+		<ManifestPrompt
+			owner="acme"
+			repo="dotfiles"
+			fileCount={3}
+			onUseManifest={noop}
+			onBrowseManually={noop}
+		/>,
+	);
+	const frame = lastFrame()!;
+	t.true(frame.includes('Install from manifest'));
+	t.true(frame.includes('Browse manually'));
+	unmount();
+});
+
+test('ManifestPrompt — enter on Install calls onUseManifest', async t => {
+	t.plan(1);
+	const {unmount, stdin} = render(
+		<ManifestPrompt
+			owner="acme"
+			repo="dotfiles"
+			fileCount={3}
+			onUseManifest={() => {
+				t.pass();
+			}}
+			onBrowseManually={noop}
+		/>,
+	);
+
+	await delay();
+	stdin.write(ENTER);
+	await delay();
+	unmount();
+});
+
+test('ManifestPrompt — navigate and select Browse manually', async t => {
+	t.plan(1);
+	const {unmount, stdin} = render(
+		<ManifestPrompt
+			owner="acme"
+			repo="dotfiles"
+			fileCount={3}
+			onUseManifest={noop}
+			onBrowseManually={() => {
+				t.pass();
+			}}
+		/>,
+	);
+
+	await delay();
+	stdin.write(ARROW_DOWN);
+	await delay();
+	stdin.write(ENTER);
+	await delay();
 	unmount();
 });
