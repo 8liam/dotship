@@ -1,6 +1,7 @@
 import {access, mkdir, stat, writeFile} from 'node:fs/promises';
 import {dirname, join, resolve} from 'node:path';
 import {homedir} from 'node:os';
+import {parse as parseYaml} from 'yaml';
 
 export type RepoItem = {
 	name: string;
@@ -71,7 +72,7 @@ export async function fileExists(filePath: string): Promise<boolean> {
 	}
 }
 
-function expandTilde(p: string): string {
+export function expandTilde(p: string): string {
 	if (p === '~') return homedir();
 	if (p.startsWith('~/') || p.startsWith('~\\')) {
 		return join(homedir(), p.slice(2));
@@ -110,4 +111,54 @@ export async function writeFileToPath(
 ): Promise<void> {
 	await mkdir(dirname(destPath), {recursive: true});
 	await writeFile(destPath, content, 'utf8');
+}
+
+export type ManifestFile = {
+	files: Record<string, string>;
+};
+
+export function parseManifest(content: string): ManifestFile | undefined {
+	try {
+		const parsed = parseYaml(content) as unknown;
+		if (
+			typeof parsed !== 'object' ||
+			parsed === null ||
+			!('files' in parsed)
+		) {
+			return undefined;
+		}
+
+		const {files} = parsed as {files: unknown};
+		if (typeof files !== 'object' || files === null || Array.isArray(files)) {
+			return undefined;
+		}
+
+		for (const [key, value] of Object.entries(files)) {
+			if (typeof key !== 'string' || typeof value !== 'string') {
+				return undefined;
+			}
+		}
+
+		return {files: files as Record<string, string>};
+	} catch {
+		return undefined;
+	}
+}
+
+export async function fetchManifest(
+	owner: string,
+	repo: string,
+): Promise<ManifestFile | undefined> {
+	const url = `https://raw.githubusercontent.com/${owner}/${repo}/HEAD/.dotship.yml`;
+	try {
+		const response = await fetch(url);
+		if (!response.ok) {
+			return undefined;
+		}
+
+		const content = await response.text();
+		return parseManifest(content);
+	} catch {
+		return undefined;
+	}
 }

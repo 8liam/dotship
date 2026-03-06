@@ -1,8 +1,8 @@
 # dotship
 
-![demo](assets/demo.gif)
+A cli-based tool for managing dotfiles. Browse any public GitHub repository, pick the config files you need, and save them exactly where they belong on your machine.
 
-A TUI for managing dotfiles. Browse any public GitHub repository, pick the config files you need, and save them exactly where they belong on your machine.
+![demo](assets/demo.gif)
 
 ## Prerequisites
 
@@ -37,6 +37,25 @@ npx dotship@latest
 5. Confirm — dotship downloads the file and saves it
 
 If a file already exists at the destination, you'll see a warning before anything is overwritten.
+
+## Manifest file (for repo authors)
+
+If a repository contains a `.dotship.yml` at its root, dotship will detect it automatically and offer to install all files at once — no manual browsing required.
+
+### Example `.dotship.yml`
+
+```yaml
+files:
+  ghostty/config: ~/.config/ghostty/config
+  .zshrc: ~/.zshrc
+  starship.toml: ~/.config/starship.toml
+  nvim/init.lua: ~/.config/nvim/init.lua
+```
+
+- **Keys** are paths relative to the repo root
+- **Values** are destination paths on the user's machine (`~` is expanded to the home directory)
+
+When a user runs `dotship` on your repo, they'll see a summary of all file mappings with an option to install everything in one go. Files that would overwrite existing files are marked with a warning.
 
 ## Controls
 
@@ -78,16 +97,21 @@ npm test
 
 ```
 source/
-  cli.tsx            Entry point
-  app.tsx            Main app state machine
+  cli.tsx              Entry point
+  app.tsx              Main app state machine
+  theme.ts             Color tokens for theming
   components/
-    Header.tsx       Gradient ASCII header
-    CommandInput.tsx  GitHub URL input
-    RepoBrowser.tsx   File/folder browser
+    Header.tsx         Gradient ASCII header
+    CommandInput.tsx   GitHub URL input
+    RepoBrowser.tsx    File/folder browser
     DestinationInput.tsx  Save path input
-    FileConfirm.tsx  Confirmation screen
+    FileConfirm.tsx    Single file confirmation
+    ManifestReview.tsx Manifest batch install review
+    ManifestDone.tsx   Batch install results
+    Spinner.tsx        Loading animation
+    StatusBar.tsx      Keyboard shortcut hints
   utils/
-    github.ts        GitHub API + file system helpers
+    github.ts          GitHub API, manifest parsing, file system helpers
 ```
 
 ### Submitting changes
